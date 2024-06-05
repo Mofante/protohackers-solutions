@@ -36,13 +36,14 @@ pub fn main() !void {
     //skip program name
     _  = args_iter.next();
 
+    const ipv6 = args_iter.next() orelse return error.MissingArgument;
     const port_name = args_iter.next() orelse return error.MissingArgument;
     
     //parse port number to int
     const port_number = try std.fmt.parseInt(u16, port_name, 10);
 
     //parse local ipv6 to computer readable format
-    const parsed_local_ipv6 = try net.Ip6Address.parse("::1", port_number);
+    const parsed_local_ipv6 = try net.Ip6Address.parse(ipv6, port_number);
     //create address struct
     const host = net.Address{ .in6 = parsed_local_ipv6 };
 
