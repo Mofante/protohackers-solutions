@@ -6,14 +6,12 @@ fn echo(client: net.Server.Connection) !void {
     var message: [1024]u8 = undefined;
     
     while (true) {
-        //clear the buffer
-        @memset(&message, 0);
         const len = try client.stream.read(&message);
         //if client has nothing else to send close the connection 
         if (len == 0) break;
 
         //send the message back to the client
-        const write_len = try client.stream.write(message[0...len]);
+        const write_len = try client.stream.write(message[0..len]);
         print("Sending {} bytes...\n", .{ write_len });
     }
     client.stream.close();
