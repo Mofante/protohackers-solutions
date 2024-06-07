@@ -14,6 +14,11 @@ const Request2 = struct {
     number: f64,
 };
 
+const Request3 = struct {
+    method: []const u8,
+    number: []const u8,
+};
+
 const Response = struct {
     method: []const u8,
     prime: bool,
@@ -30,51 +35,60 @@ fn handleClient(allocator: std.mem.Allocator, client: net.Server.Connection) !vo
         
         print("{s}\n", .{ message.? });
 
-        const req: ?json.Parsed(Request1) = json.parseFromSlice(Request1, allocator, message.?, .{ .ignore_unknown_fields = true }) catch null;
+        const req1: ?json.Parsed(Request1) = json.parseFromSlice(Request1, allocator, message.?, .{ .ignore_unknown_fields = true }) catch null;
+        const req2: ?json.Parsed(Request2) = json.parseFromSlice(Request2, allocator, message.?, .{ .ignore_unknown_fields = true }) catch null;
+        const req3: ?json.Parsed(Request3) = json.parseFromSlice(Request3, allocator, message.?, .{ .ignore_unknown_fields = true }) catch null;
 
-        if (req != null) {
-            defer req.?.deinit();
-        
-            if (!std.mem.eql(u8, req.?.value.method, "isPrime")) {
+        var res: Response = undefined;
+
+        if (req1) |req| {
+            defer req.deinit();
+            
+            if (!std.mem.eql(u8, req.value.method, "isPrime")) {
                 _ = try client.stream.write("Invalid request!\n");
                 break;
             }
         
-            const res = Response{ .method = "isPrime", .prime = isPrime(req.?.value.number)};
-
-            const response_string = try json.stringifyAlloc(allocator, res, .{});
-            defer allocator.free(response_string);
-
-            const newline = "\n";
-            const string_with_newline = try std.mem.concat(allocator, u8, &[_][]const u8{ response_string, newline });
-            defer allocator.free(string_with_newline);
+            res = Response{ .method = "isPrime", .prime = isPrime(req.value.number)};
+        } else if (req2) |req| {
+            defer req.deinit();
             
-            _ = try client.stream.write(string_with_newline);
+            if (!std.mem.eql(u8, req.value.method, "isPrime")) {
+                _ = try client.stream.write("Invalid request!\n");
+                break;
+            }
+            
+            const is_prime = (@floor(req.value.number) == @ceil(req.value.number)) and isPrime(@intFromFloat(req.value.number));
+            res = Response{ .method = "isPrime", .prime = is_prime };
+        } else if (req3) |req| {
+            defer req.deinit();
+            
+            if (!std.mem.eql(u8, req.value.method, "isPrime")) {
+                _ = try client.stream.write("Invalid request!\n");
+                break;
+            }
+            
+            const num: ?i64 = std.fmt.parseInt(i64, req.value.number, 10) catch null;
+            
+            if (num) |n| {
+                res = Response{ .method = "isPrime", .prime = isPrime(n)};
+            } else {
+                _ = try client.stream.write("Invalid request!\n");
+                break;
+            }
         } else {
-            const req2: json.Parsed(Request2) = json.parseFromSlice(Request2, allocator, message.?, .{ .ignore_unknown_fields = true }) catch {
-                _ = try client.stream.write("Invalid request!\n");
-                break;
-            };
-            defer req2.deinit();
-
-            if (!std.mem.eql(u8, req2.value.method, "isPrime")) {
-                _ = try client.stream.write("Invalid request!\n");
-                break;
-            }
-            
-            const is_prime = (@floor(req2.value.number) == @ceil(req2.value.number)) and isPrime(@intFromFloat(req2.value.number));
-
-            const res = Response{ .method = "isPrime", .prime = is_prime };
-
-            const response_string = try json.stringifyAlloc(allocator, res, .{});
-            defer allocator.free(response_string);
-            
-            const newline = "\n";
-            const string_with_newline = try std.mem.concat(allocator, u8, &[_][]const u8{ response_string, newline });
-            defer allocator.free(string_with_newline);
-
-            _ = try client.stream.write(string_with_newline);
+            _ = try client.stream.write("Invalid request!\n");
+            break;
         }
+
+        const response_string = try json.stringifyAlloc(allocator, res, .{});
+        defer allocator.free(response_string);
+
+        const newline = "\n";
+        const string_with_newline = try std.mem.concat(allocator, u8, &[_][]const u8{ response_string, newline });
+        defer allocator.free(string_with_newline);
+
+        _ = try client.stream.write(string_with_newline);
     }
 
     client.stream.close();
