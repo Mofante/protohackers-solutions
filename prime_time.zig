@@ -15,7 +15,7 @@ const Request2 = struct {
 };
 
 const Response = struct {
-    method: *const [7]u8,
+    method: []const u8,
     prime: bool,
 };
 
@@ -26,6 +26,7 @@ fn handleClient(allocator: std.mem.Allocator, client: net.Server.Connection) !vo
         const message = try client.stream.reader().readUntilDelimiterOrEof(&buff, '\n');
 
         if (message == null) break;
+        if (std.mem.eql(u8, message.?, "")) continue;
 
         const req: ?json.Parsed(Request1) = json.parseFromSlice(Request1, allocator, message.?, .{ .ignore_unknown_fields = true }) catch null;
 
