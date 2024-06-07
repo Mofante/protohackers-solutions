@@ -27,6 +27,8 @@ fn handleClient(allocator: std.mem.Allocator, client: net.Server.Connection) !vo
 
         if (message == null) break;
         if (std.mem.eql(u8, message.?, "")) continue;
+        
+        print("{s}\n", .{ message.? });
 
         const req: ?json.Parsed(Request1) = json.parseFromSlice(Request1, allocator, message.?, .{ .ignore_unknown_fields = true }) catch null;
 
