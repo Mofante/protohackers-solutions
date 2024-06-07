@@ -33,7 +33,7 @@ fn handleClient(allocator: std.mem.Allocator, client: net.Server.Connection) !vo
         if (message == null) break;
         if (std.mem.eql(u8, message.?, "")) continue;
         
-        print("{s}\n", .{ message.? });
+        print("req: {s}\n", .{ message.? });
 
         const req1: ?json.Parsed(Request1) = json.parseFromSlice(Request1, allocator, message.?, .{ .ignore_unknown_fields = true }) catch null;
         const req2: ?json.Parsed(Request2) = json.parseFromSlice(Request2, allocator, message.?, .{ .ignore_unknown_fields = true }) catch null;
@@ -83,6 +83,8 @@ fn handleClient(allocator: std.mem.Allocator, client: net.Server.Connection) !vo
 
         const response_string = try json.stringifyAlloc(allocator, res, .{});
         defer allocator.free(response_string);
+        
+        print("response: {s}\n", .{ response_string });
 
         const newline = "\n";
         const string_with_newline = try std.mem.concat(allocator, u8, &[_][]const u8{ response_string, newline });
