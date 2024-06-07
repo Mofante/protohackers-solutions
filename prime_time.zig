@@ -59,8 +59,10 @@ fn handleClient(allocator: std.mem.Allocator, client: net.Server.Connection) !vo
                 _ = try client.stream.write("Invalid request!\n");
                 break;
             }
-        
-            const res = Response{ .method = "isPrime", .prime = isPrimef(req2.value.number)};
+            
+            const is_prime = (@floor(req2.value.number) == @ceil(req2.value.number)) and isPrime(@intFromFloat(req2.value.number));
+
+            const res = Response{ .method = "isPrime", .prime = is_prime };
 
             const response_string = try json.stringifyAlloc(allocator, res, .{});
             defer allocator.free(response_string);
@@ -79,23 +81,6 @@ fn handleClient(allocator: std.mem.Allocator, client: net.Server.Connection) !vo
 
 fn isPrime(number: i64) bool {
     var i: i64 = 2;
-
-    if (number < 2) return false;
-    if (number < 4) return true;
-
-    return while (i * i <= number) : (i += 1) {
-        if (@mod(number, i) == 0) {
-            break false;
-        }
-    } else true;
-}
-
-fn isPrimef(inp: f64) bool {
-    var i: i64 = 2;
-    
-    if (@mod(inp, 1) != 0) return false;
-    
-    const number = @as(i64, @intFromFloat(inp));
 
     if (number < 2) return false;
     if (number < 4) return true;
