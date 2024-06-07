@@ -27,7 +27,7 @@ fn handleClient(allocator: std.mem.Allocator, client: net.Server.Connection) !vo
 
         if (message == null) break;
 
-        const req: ?json.Parsed(Request1) = json.parseFromSlice(Request1, allocator, message.?, .{}) catch null;
+        const req: ?json.Parsed(Request1) = json.parseFromSlice(Request1, allocator, message.?, .{ .ignore_unknown_fields = true }) catch null;
 
         if (req != null) {
             defer req.?.deinit();
@@ -44,7 +44,7 @@ fn handleClient(allocator: std.mem.Allocator, client: net.Server.Connection) !vo
 
             _ = try client.stream.write(response_string);
         } else {
-            const req2: json.Parsed(Request2) = json.parseFromSlice(Request2, allocator, message.?, .{}) catch {
+            const req2: json.Parsed(Request2) = json.parseFromSlice(Request2, allocator, message.?, .{ .ignore_unknown_fields = true }) catch {
                 _ = try client.stream.write("Invalid request!\n");
                 break;
             };
