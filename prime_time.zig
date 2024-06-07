@@ -43,7 +43,11 @@ fn handleClient(allocator: std.mem.Allocator, client: net.Server.Connection) !vo
             const response_string = try json.stringifyAlloc(allocator, res, .{});
             defer allocator.free(response_string);
 
-            _ = try client.stream.write(response_string);
+            const newline = "\n";
+            const string_with_newline = try std.mem.concat(allocator, u8, &[_][]const u8{ response_string, newline });
+            defer allocator.free(string_with_newline);
+            
+            _ = try client.stream.write(string_with_newline);
         } else {
             const req2: json.Parsed(Request2) = json.parseFromSlice(Request2, allocator, message.?, .{ .ignore_unknown_fields = true }) catch {
                 _ = try client.stream.write("Invalid request!\n");
@@ -60,8 +64,12 @@ fn handleClient(allocator: std.mem.Allocator, client: net.Server.Connection) !vo
 
             const response_string = try json.stringifyAlloc(allocator, res, .{});
             defer allocator.free(response_string);
+            
+            const newline = "\n";
+            const string_with_newline = try std.mem.concat(allocator, u8, &[_][]const u8{ response_string, newline });
+            defer allocator.free(string_with_newline);
 
-            _ = try client.stream.write(response_string);
+            _ = try client.stream.write(string_with_newline);
         }
     }
 
