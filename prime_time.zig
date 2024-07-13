@@ -2,22 +2,6 @@ const std = @import("std");
 const net = std.net;
 const print = std.debug.print;
 const expect = std.testing.expect;
-const json = std.json;
-
-const Request1 = struct {
-    method: []const u8,
-    number: i64,
-};
-
-const Request2 = struct {
-    method: []const u8,
-    number: f64,
-};
-
-const Request3 = struct {
-    method: []const u8,
-    number: []const u8,
-};
 
 const Response = struct {
     method: []const u8,
@@ -25,7 +9,7 @@ const Response = struct {
 };
 
 fn handleClient(allocator: std.mem.Allocator, client: net.Server.Connection) !void {
-    var buff: [1024]u8 = undefined;
+    var buff: [32768]u8 = undefined; //buffer is huge because of one nasty test
 
     while (true) {
         const message = try client.stream.reader().readUntilDelimiterOrEof(&buff, '\n');
@@ -35,57 +19,57 @@ fn handleClient(allocator: std.mem.Allocator, client: net.Server.Connection) !vo
         
         print("req: {s}\n", .{ message.? });
 
-        const req1: ?json.Parsed(Request1) = json.parseFromSlice(Request1, allocator, message.?, .{ .ignore_unknown_fields = true }) catch null;
-        const req2: ?json.Parsed(Request2) = json.parseFromSlice(Request2, allocator, message.?, .{ .ignore_unknown_fields = true }) catch null;
-        const req3: ?json.Parsed(Request3) = json.parseFromSlice(Request3, allocator, message.?, .{ .ignore_unknown_fields = true }) catch null;
-
         var res: Response = undefined;
-
-        if (req1) |req| {
-            defer req.deinit();
-            
-            if (!std.mem.eql(u8, req.value.method, "isPrime")) {
-                _ = try client.stream.write("Invalid request!\n");
-                break;
-            }
         
-            res = Response{ .method = "isPrime", .prime = isPrime(req.value.number)};
-        } else if (req2) |req| {
-            defer req.deinit();
-            
-            if (!std.mem.eql(u8, req.value.method, "isPrime")) {
-                _ = try client.stream.write("Invalid request!\n");
+        //check if request is valid json and parse
+        const req : std.json.Parsed(std.json.Value) =
+            std.json.parseFromSlice(std.json.Value, allocator, message.?, .{}) catch {
+                _ = try client.stream.write("Invalid Request!\n");
                 break;
-            }
-            
-            const is_prime = (@floor(req.value.number) == @ceil(req.value.number)) and isPrime(@intFromFloat(req.value.number));
-            res = Response{ .method = "isPrime", .prime = is_prime };
-        } else if (req3) |req| {
-            defer req.deinit();
-            
-            if (!std.mem.eql(u8, req.value.method, "isPrime")) {
-                _ = try client.stream.write("Invalid request!\n");
-                break;
-            }
-            
-            const num: ?i64 = std.fmt.parseInt(i64, req.value.number, 10) catch null;
-            
-            if (num) |n| {
-                res = Response{ .method = "isPrime", .prime = isPrime(n)};
-            } else {
-                _ = try client.stream.write("Invalid request!\n");
+            };
+        defer req.deinit();
+
+        const req_json: std.json.Value = req.value;
+        
+        //check if the "method" field is set to "isPrime"
+        if (req_json.object.get("method")) |method_field| {
+            if (method_field != .string or !std.mem.eql(u8, method_field.string, "isPrime")) {
+                _ = try client.stream.write("Invalid Request!\n");
                 break;
             }
         } else {
-            _ = try client.stream.write("Invalid request!\n");
+            _ = try client.stream.write("Invalid Request!\n");
             break;
         }
-
-        const response_string = try json.stringifyAlloc(allocator, res, .{});
+        
+        //check if the "number" field is a valid number and parse accodingly
+        if (req_json.object.get("number")) |number_field| {
+            var is_prime: bool = undefined;
+            if (number_field == .float) {
+                const num: f64 = number_field.float;
+                is_prime = (@floor(num) == @ceil(num) and isPrime(@intFromFloat(num)));
+            } else if (number_field == .integer) {
+                const num: i64 = number_field.integer;
+                is_prime = isPrime(num);
+            } else if (number_field == .number_string) {
+                const num: i512 = try std.fmt.parseInt(i512, number_field.number_string, 10);
+                is_prime = isPrime(num);
+            } else {
+                _ = try client.stream.write("Invalid Request!\n");
+                break;
+            }
+            res = Response{ .method = "isPrime", .prime = is_prime };
+        } else {
+            _ = try client.stream.write("Invalid Request!\n");
+            break;
+        }
+        
+        const response_string = try std.json.stringifyAlloc(allocator, res, .{});
         defer allocator.free(response_string);
         
         print("response: {s}\n", .{ response_string });
 
+        //add newline at the end of a string
         const newline = "\n";
         const string_with_newline = try std.mem.concat(allocator, u8, &[_][]const u8{ response_string, newline });
         defer allocator.free(string_with_newline);
@@ -97,8 +81,9 @@ fn handleClient(allocator: std.mem.Allocator, client: net.Server.Connection) !vo
     print("Client disconnected!\n", .{});
 }
 
-fn isPrime(number: i64) bool {
-    var i: i64 = 2;
+//prime check for integers up to 512 bits
+fn isPrime(number: i512) bool {
+    var i: i512 = 2;
 
     if (number < 2) return false;
     if (number < 4) return true;
@@ -138,16 +123,16 @@ pub fn main() !void {
     //skip program name
     _  = args_iter.next();
 
-    const ipv6 = args_iter.next() orelse return error.MissingArgument;
+    const ipv4 = args_iter.next() orelse return error.MissingArgument;
     const port_name = args_iter.next() orelse return error.MissingArgument;
     
     //parse port number to int
     const port_number = try std.fmt.parseInt(u16, port_name, 10);
 
-    //parse local ipv6 to computer readable format
-    const parsed_local_ipv6 = try net.Ip6Address.parse(ipv6, port_number);
+    //parse local ipv4 to computer readable format
+    const parsed_local_ipv4 = try net.Ip4Address.parse(ipv4, port_number);
     //create address struct
-    const host = net.Address{ .in6 = parsed_local_ipv6 };
+    const host = net.Address{ .in = parsed_local_ipv4 };
 
 
     var server = try host.listen(.{
