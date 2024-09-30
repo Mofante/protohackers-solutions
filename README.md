@@ -15,4 +15,6 @@ I decided to use a segment tree to handle insterts and queries in O(log(n)), but
 
 Whereas the sparse segement tree takes up O(k * log(n)) where k is number of inserts. This adds up to 200000 (largest test case) * log(2^32) * 4B = around 25 MB per client (which is quite a bit less)
 ## Challenge 2 - Budget Chat
-Simple TCP-based chat room
+Simple TCP-based chat room.
+## Challenge 2 - Unusual Database Program
+A key-value store allowing for insertion and retrieval over UDP.
